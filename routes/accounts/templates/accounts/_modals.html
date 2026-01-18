@@ -1,0 +1,95 @@
+
+<!-- 添加 Modal -->
+<div x-data x-init="window.addEventListener('open-add-modal', () => $refs.addModal.showModal())" @open-add-modal.window="$refs.addModal.showModal()">
+  <dialog class="modal" x-ref="addModal">
+    <form method="dialog" class="modal-box bg-white rounded-xl p-0 w-96">
+      <div class="p-4 border-b"><div class="text-lg font-semibold text-primary">添加密钥</div></div>
+      <div class="p-4 space-y-3" x-data="{platform:'Microsoft Azure'}">
+        <label class="block">
+          <span class="text-sm text-gray-600">账户名称</span>
+          <input name="account_name" class="mt-1 w-full border rounded px-3 py-2" required>
+        </label>
+        <label class="block">
+          <span class="text-sm text-gray-600">邮箱（可选）</span>
+          <input name="email" class="mt-1 w-full border rounded px-3 py-2">
+        </label>
+        <label class="block">
+          <span class="text-sm text-gray-600">平台 / 发行方</span>
+          <select class="mt-1 w-full border rounded px-3 py-2" x-model="platform">
+            <option>Microsoft Azure</option>
+            <option>Google</option>
+            <option>GitHub</option>
+            <option>AWS</option>
+            <option>Cloudflare</option>
+            <option>Custom</option>
+          </select>
+        </label>
+        <template x-if="platform==='Custom'">
+          <label class="block">
+            <span class="text-sm text-gray-600">自定义发行方名称</span>
+            <input name="issuer_custom" class="mt-1 w-full border rounded px-3 py-2" placeholder="如：My Company">
+          </label>
+        </template>
+        <div class="flex gap-3">
+          <label class="inline-flex items-center gap-2"><input type="radio" name="mode" value="manual" checked><span>手动输入密钥</span></label>
+          <label class="inline-flex items-center gap-2"><input type="radio" name="mode" value="generated"><span>自动生成</span></label>
+        </div>
+        <label class="block" id="manual-section">
+          <span class="text-sm text-gray-600">TOTP 密钥（Base32）</span>
+          <input name="secret" class="mt-1 w-full border rounded px-3 py-2" placeholder="如：JBSWY3DPEHPK3PXP">
+        </label>
+      </div>
+      <div class="p-4 border-t flex justify-end gap-3">
+        <button type="button" class="px-4 py-2 bg-gray-100 rounded" @click="$refs.addModal.close()">取消</button>
+        <button type="button" class="px-4 py-2 rounded border border-violet-600 text-white bg-primary hover:bg-violet-700"
+                @click.prevent="(async () => {
+                  try {
+                    const box = $refs.addModal.querySelector('.modal-box');
+                    const form = box.querySelector('div.p-4.space-y-3');
+                    const fd = new FormData();
+                    fd.append('account_name', form.querySelector('input[name=account_name]').value.trim());
+                    fd.append('email', form.querySelector('input[name=email]').value.trim());
+                    let issuerSel = form.querySelector('select').value;
+                    if(issuerSel==='Custom') issuerSel = form.querySelector('input[name=issuer_custom]').value.trim() || 'Custom';
+                    fd.append('issuer', issuerSel);
+                    const mode = form.querySelector('input[name=mode]:checked').value;
+                    fd.append('mode', mode);
+                    if (mode === 'manual') { fd.append('secret', form.querySelector('input[name=secret]').value.trim()); }
+                    const res = await fetch('/add', { method: 'POST', body: fd });
+                    const d = await res.json();
+                    if (d && d.ok) { location.reload(); } else { alert((d && d.error) ? d.error : '保存失败'); }
+                  } catch (e) { console.error(e); alert('发生错误：' + e); }
+                })()">保存</button>
+      </div>
+    </form>
+    <form method="dialog" class="modal-backdrop bg-black/30"></form>
+  </dialog>
+</div>
+
+<!-- 显示密钥 Modal（代替 alert） -->
+<div x-data="{item:{id:null,account_name:''}, secret:'********', revealed:false}"
+     @open-reveal-modal.window="item=$event.detail; secret='********'; revealed=false; (async()=>{ try{ const r=await fetch('/reveal/'+item.id); const d=await r.json(); if(d.secret){ secret=d.secret } }catch(e){ secret='错误：'+e } })(); $refs.revealModal.showModal()">
+  <dialog class="modal" x-ref="revealModal">
+    <form method="dialog" class="modal-box bg-white rounded-xl p-0 w-[28rem] max-w-[92vw]">
+      <div class="p-4 border-b flex items-center justify-between">
+        <div class="text-lg font-semibold text-primary">显示密钥</div>
+        <div class="text-sm text-gray-500" x-text="item.account_name"></div>
+      </div>
+      <div class="p-4 space-y-4">
+        <div class="flex items-center gap-2">
+          <input :type="revealed ? 'text' : 'password'" :value="secret" readonly class="flex-1 border rounded px-3 py-2 font-mono text-sm" />
+          <button type="button" class="px-3 py-2 border rounded bg-gray-100 hover:bg-gray-200" @click="revealed=!revealed" x-text="revealed? '隐藏' : '显示'"></button>
+          <button type="button" class="px-3 py-2 border rounded bg-gray-100 hover:bg-gray-200" @click="navigator.clipboard.writeText(secret).then(()=>alert('已复制'))">复制</button>
+        </div>
+        <div>
+          <div class="text-sm text-gray-600 mb-2">二维码（otpauth）</div>
+          <img :src="'/qr/'+item.id" alt="QR" class="w-40 h-40 border rounded"/>
+        </div>
+      </div>
+      <div class="p-4 border-t flex justify-end gap-3">
+        <button type="button" class="px-4 py-2 bg-gray-100 rounded" @click="$refs.revealModal.close()">关闭</button>
+      </div>
+    </form>
+    <form method="dialog" class="modal-backdrop bg-black/30"></form>
+  </dialog>
+</div>
